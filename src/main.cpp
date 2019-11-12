@@ -48,6 +48,9 @@
 #include "utils.h"
 #include "matrices.h"
 
+#define WindowWidth 1600
+#define WindowDepth 900
+
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
 struct ObjModel
@@ -137,12 +140,28 @@ struct SceneObject
     glm::vec3    bbox_max;
 };
 
+struct screen
+{
+    float width, depth;                                         // tamanho da tela
+};
+
 struct pacman
 {
-    float posX = 0.0f;
-    float posY = 0.0f;
-    float posZ = 0.0f;
+    float posX,posY,posZ = 0.0f;                                // coordenadas onde o pacman está localizado 
 }; pacman player;
+
+struct dots{                                                    // vetores dos pontos
+    float x,y,z;
+    glm::vec4 vectors = glm::vec4(x,y,z,1);
+};
+
+struct box
+{
+    float x,y,z,w;                                 // tamanho das caixas nos eixos x,y,z
+    glm::vec4 size;
+    glm::vec4 coord;                                      // coordenadas do ponto onde a caixa esta localizada
+};
+
 
 // Abaixo definimos variáveis globais utilizadas em várias funções do código.
 
@@ -234,7 +253,7 @@ int main(int argc, char* argv[])
     // Criamos uma janela do sistema operacional, com 800 colunas e 600 linhas
     // de pixels, e com título "INF01047 ...".
     GLFWwindow* window;
-    window = glfwCreateWindow(800, 600, "INF01047 - Seu Cartao - Seu Nome", NULL, NULL);
+    window = glfwCreateWindow(WindowWidth, WindowDepth, "INF01047 - Seu Cartao - Seu Nome", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -263,7 +282,7 @@ int main(int argc, char* argv[])
     // redimensionada, por consequência alterando o tamanho do "framebuffer"
     // (região de memória onde são armazenados os pixels da imagem).
     glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
-    FramebufferSizeCallback(window, 800, 600); // Forçamos a chamada do callback acima, para definir g_ScreenRatio.
+    FramebufferSizeCallback(window, WindowWidth, WindowDepth); // Forçamos a chamada do callback acima, para definir g_ScreenRatio.
 
     // Imprimimos no terminal informações sobre a GPU do sistema
     const GLubyte *vendor      = glGetString(GL_VENDOR);
@@ -296,6 +315,10 @@ int main(int argc, char* argv[])
     ObjModel planemodel("../../data/plane.obj");
     ComputeNormals(&planemodel);
     BuildTrianglesAndAddToVirtualScene(&planemodel);
+
+    ObjModel cratemodel("../../data/crate.obj");
+    ComputeNormals(&cratemodel);
+    BuildTrianglesAndAddToVirtualScene(&cratemodel);
 
     if ( argc > 1 )
     {
@@ -402,23 +425,35 @@ int main(int argc, char* argv[])
         #define BUNNY  1
         #define PLANE  2
         #define WALL   3
+        #define CRATE  4
 
-        float scaledX = 10.0f;
-        float scaledZ = 10.0f;
-        float scaledY = -1.1f;
+        float scaledX = 16.0f;
+        float scaledZ = 9.0f;
+        float scaledY = 0.0f;
         int i=0;
+
+        box walls[10];
+
+       // walls[0].size_x = 1.0f;
+
+  
+
+
+struct box
+{
+    float size_x,size_y,size_z;                                 // tamanho das caixas nos eixos x,y,z
+    float dotX, dotY,dotZ;                                      // coordenadas do ponto onde a caixa esta localizada
+};
 
         // Desenhamos o modelo da esfera
         model = Matrix_Translate(player.posX,player.posY,player.posZ)
-              * Matrix_Rotate_Z(0.6f)
-              * Matrix_Rotate_X(0.2f)
               * Matrix_Rotate_Y(g_AngleY);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, SPHERE);
         DrawVirtualObject("sphere");
 
         // Desenhamos o modelo do coelho
-        model = Matrix_Scale(0.5f,0.5f,0.5f)
+        model = Matrix_Scale(0.5f,1.0f,0.5f)
               * Matrix_Translate(0.5f,0.0f,0.0f) 
               * Matrix_Rotate_Z(g_AngleZ) 
               * Matrix_Rotate_Y(g_AngleY) 
@@ -427,13 +462,20 @@ int main(int argc, char* argv[])
         glUniform1i(object_id_uniform, BUNNY);
         DrawVirtualObject("bunny");
 
+        model = Matrix_Translate(0.0f,0.0f,0.0f)
+              * Matrix_Scale(scaledX,1.0f,scaledZ);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, PLANE);
+        DrawVirtualObject("plane");
+
+/*
         // Desenhamos o plano do chão
         model = Matrix_Translate(0.0f,-1.1f,0.0f)
               * Matrix_Scale(scaledX,1.0f,scaledZ);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, PLANE);
         DrawVirtualObject("plane");
-
+/*/
         // Desenhamos o plano das paredes
        /* for (i=0;i<scaledX;i++){
 	        model = Matrix_Translate(g_VirtualScene["plane"].bbox_max.x*scaledX,scaledY+1.0f,(g_VirtualScene["plane"].bbox_max.z*scaledZ-1.0f)-2*i)          // melhorar a funcao return_bbox_max
@@ -443,14 +485,14 @@ int main(int argc, char* argv[])
 	        DrawVirtualObject("plane");
 	    }
 */
-         model = Matrix_Translate(g_VirtualScene["plane"].bbox_max.x*scaledX,scaledY+1.0f,0.0f)          // melhorar a funcao return_bbox_max
+         model = Matrix_Translate(g_VirtualScene["plane"].bbox_max.x*scaledX,g_VirtualScene["plane"].bbox_max.y+1.0f,0.0f)          // melhorar a funcao return_bbox_max
 	           * Matrix_Rotate_Z(M_PI_2)
 	           * Matrix_Scale(1.0f,1.0f,scaledZ);
 	    glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
 	    glUniform1i(object_id_uniform, WALL);
 	    DrawVirtualObject("plane");
 
-	    model = Matrix_Translate(g_VirtualScene["plane"].bbox_min.x*scaledX,scaledY+1.0f,0.0f)          // melhorar a funcao return_bbox_max
+	    model = Matrix_Translate(g_VirtualScene["plane"].bbox_min.x*scaledX,g_VirtualScene["plane"].bbox_max.y+1.0f,0.0f)          // melhorar a funcao return_bbox_max
 	           * Matrix_Rotate_Z(M_PI_2)
 	           * Matrix_Rotate_X(M_PI)
 	           * Matrix_Scale(1.0f,1.0f,scaledZ);
@@ -458,21 +500,30 @@ int main(int argc, char* argv[])
 	    glUniform1i(object_id_uniform, WALL);
 	    DrawVirtualObject("plane");
 
-	    model = Matrix_Translate(0.0f,scaledY+1.0f,g_VirtualScene["plane"].bbox_min.z*scaledZ)          // melhorar a funcao return_bbox_max
+	    model = Matrix_Translate(0.0f,g_VirtualScene["plane"].bbox_max.y+1.0f,g_VirtualScene["plane"].bbox_min.z*scaledZ)          // melhorar a funcao return_bbox_max
 	          * Matrix_Rotate_Z(M_PI_2)
 	          * Matrix_Rotate_X(M_PI_2)
-	          * Matrix_Scale(1.0f,1.0f,scaledZ);
+	          * Matrix_Scale(1.0f,1.0f,scaledX);
 	    glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
 	    glUniform1i(object_id_uniform, WALL);
 	    DrawVirtualObject("plane");
 
-	    model = Matrix_Translate(0.0f,scaledY+1.0f,g_VirtualScene["plane"].bbox_max.z*scaledZ)          // melhorar a funcao return_bbox_max
+	    model = Matrix_Translate(0.0f,g_VirtualScene["plane"].bbox_max.y+1.0f,g_VirtualScene["plane"].bbox_max.z*scaledZ)          // melhorar a funcao return_bbox_max
 	          * Matrix_Rotate_Z(M_PI_2)
 	          * Matrix_Rotate_X(M_PI+M_PI_2)
-	          * Matrix_Scale(1.0f,1.0f,scaledZ);
+	          * Matrix_Scale(1.0f,1.0f,scaledX);
 	    glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
 	    glUniform1i(object_id_uniform, WALL);
 	    DrawVirtualObject("plane");
+
+        // paredes internas
+        model = Matrix_Translate(2.0f,g_VirtualScene["plane"].bbox_min.y*scaledY,2.0f)          // melhorar a funcao return_bbox_max
+               * Matrix_Rotate_Z(M_PI_2)
+               * Matrix_Scale(1.0f,1.0f,1.0f);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+        glUniform1i(object_id_uniform, WALL);
+        DrawVirtualObject("crate");
+
 
 	    
 
@@ -669,6 +720,7 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(program_id, "obsidian"), 1);
     glUniform1i(glGetUniformLocation(program_id, "pac"), 2);
     glUniform1i(glGetUniformLocation(program_id, "pac3"), 3);
+    //glUniform1i(glGetUniformLocation(program_id, "crate"), 4);
 
     glUseProgram(0);
 }
