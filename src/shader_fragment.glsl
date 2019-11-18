@@ -23,6 +23,8 @@ uniform mat4 projection;
 #define BUNNY  1
 #define PLANE  2
 #define WALL   3
+#define CRATE  4
+#define CUBE    5
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -33,6 +35,8 @@ uniform sampler2D brick;
 uniform sampler2D obsidian;
 uniform sampler2D pac;
 uniform sampler2D pac3;
+uniform sampler2D compcube;
+
 
 #define M_PI   3.14159265358979323846
 #define M_PI_2 1.57079632679489661923
@@ -97,10 +101,8 @@ void main()
     if ( object_id == BUNNY )
     {
         hasTexture = true;
-
         vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
         vec4 centerEdge_vector = (position_model - bbox_center);
-
         float rho = sqrt(centerEdge_vector.x*centerEdge_vector.x +
                          centerEdge_vector.y*centerEdge_vector.y +
                          centerEdge_vector.z*centerEdge_vector.z);
@@ -132,7 +134,7 @@ void main()
         U = (position_model.x - minx)/(maxx-minx);
         V = (position_model.y - miny)/(maxy-miny);    
 
-        Kd = texture(pac3, vec2(U,V)).rgb;
+        Kd = texture(pac, vec2(U,V)).rgb;
         Ks = vec3(0.0,0.0,0.0);
         Ka = vec3(0.4,0.2,0.04);
         q = 1.0;   
@@ -143,30 +145,80 @@ void main()
         hasTexture = true;
         vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
 
-        U = texcoords.x*10;
-        V = texcoords.y*10;
+        U = texcoords.x;
+        V = texcoords.y;
         
-        Kd = texture(brick, vec2(U,V)).rgb;
+        Kd = texture(compcube, vec2(U,V)).rgb;
         Ks = vec3(0.1,0.1,0.1);
         Ka = vec3(0.3,0.3,0.3);
-        q = 20.0;
-        // Coordenadas de textura do plano, obtidas do arquivo OBJ.
-        
+        q = 20.0;    
+    }
+
+    else if ( object_id == CRATE )
+    {
+        hasTexture = true;
+
+        float minx = bbox_min.x;
+        float maxx = bbox_max.x;
+        float miny = bbox_min.y;
+        float maxy = bbox_max.y;
+        float minz = bbox_min.z;
+        float maxz = bbox_max.z;
+
+        // pu = px-minx/maxx-minx
+        // pv = py-minxy/maxy-miny
+        U = (position_model.x - minx)/(maxx-minx);
+        V = (position_model.y - miny)/(maxy-miny);    
+
+        Kd = texture(compcube, vec2(U,V)).rgb;
+        Ks = vec3(0.0,0.0,0.0);
+        Ka = vec3(0.4,0.2,0.04);
+        q = 1.0;   
     }
 
     else if ( object_id == WALL )
     {
         hasTexture = true;
-        vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
 
-        U = texcoords.x*10;
-        V = texcoords.y*10;
-        
-        Kd = texture(obsidian, vec2(U,V)).rgb;
-        Ks = vec3(0.1,0.1,0.1);
-        Ka = vec3(0.3,0.3,0.3);
-        q = 20.0;
-        // Coordenadas de textura do plano, obtidas do arquivo OBJ.
+        float minx = bbox_min.x;
+        float maxx = bbox_max.x;
+        float miny = bbox_min.y;
+        float maxy = bbox_max.y;
+        float minz = bbox_min.z;
+        float maxz = bbox_max.z;
+
+        // pu = px-minx/maxx-minx
+        // pv = py-minxy/maxy-miny
+        U = (position_model.x - minx)/(maxx-minx);
+        V = (position_model.y - miny)/(maxy-miny);    
+
+        Kd = texture(compcube, vec2(U,V)).rgb;
+        Ks = vec3(0.0,0.0,0.0);
+        Ka = vec3(0.4,0.2,0.04);
+        q = 1.0;   
+        // Coordenadas de textura do plano, obtidas do arquivo OBJ.        
+    }
+
+    else if ( object_id == CUBE )
+    {
+        hasTexture = true;
+
+        float minx = bbox_min.x;
+        float maxx = bbox_max.x;
+        float miny = bbox_min.y;
+        float maxy = bbox_max.y;
+        float minz = bbox_min.z;
+        float maxz = bbox_max.z;
+
+        // pu = px-minx/maxx-minx
+        // pv = py-minxy/maxy-miny
+        U = (position_model.x - minx)/(maxx-minx);
+        V = (position_model.y - miny)/(maxy-miny);    
+
+        Kd = texture(compcube, vec2(U,V)).rgb;
+        Ks = vec3(0.0,0.0,0.0);
+        Ka = vec3(0.4,0.2,0.04);
+        q = 1.0;   
         
     }
 /*
@@ -182,20 +234,14 @@ void main()
     color = pow(color, vec3(1.0,1.0,1.0)/2.2);
 } */
     float lambert_diffuse_term = max(0,dot(n,l)); // PREENCHA AQUI o termo difuso de Lambert
-
     // Termo especular utilizando o modelo de iluminação de Phong
     float phong_specular_term  = pow(max(0,dot(r,v)),q); // PREENCH AQUI o termo especular de Phong
-
     // Espectro da fonte de iluminação
     vec3 light_spectrum = vec3(1.0,1.0,1.0); // PREENCH AQUI o espectro da fonte de luz
-
     // Espectro da luz ambiente
     vec3 ambient_light_spectrum = vec3(0.2,0.2,0.2); // PREENCHA AQUI o espectro da luz ambiente
-
-
     // Cor final do fragmento calculada com uma combinação dos termos difuso,
     // especular, e ambiente. Veja slide 131 do documento "Aula_17_e_18_Modelos_de_Iluminacao.pdf".
-
     color = hasTexture ?
             (Kd /* * (pow(lambert_diffuse_term, 1) + 0.01)
                 + Ka * ambient_light_spectrum

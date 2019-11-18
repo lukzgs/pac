@@ -18,7 +18,6 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-
 // Headers abaixo são específicos de C++
 #include <map>
 #include <stack>
@@ -29,27 +28,29 @@
 #include <sstream>
 #include <stdexcept>
 #include <algorithm>
-
 // Headers das bibliotecas OpenGL
 #include <glad/glad.h>   // Criação de contexto OpenGL 3.3
 #include <GLFW/glfw3.h>  // Criação de janelas do sistema operacional
-
 // Headers da biblioteca GLM: criação de matrizes e vetores.
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
 // Headers da biblioteca para carregar modelos obj
 #include <tiny_obj_loader.h>
-
 #include <stb_image.h>
-
 // Headers locais, definidos na pasta "include/"
 #include "utils.h"
 #include "matrices.h"
 
 #define WindowWidth 1600
 #define WindowDepth 900
+
+#define SPHERE 0
+#define BUNNY  1
+#define PLANE  2
+#define WALL   3
+#define CRATE  4
+#define CUBE   5
 
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
@@ -81,7 +82,6 @@ struct ObjModel
 // Declaração de funções utilizadas para pilha de matrizes de modelagem.
 void PushMatrix(glm::mat4 M);
 void PopMatrix(glm::mat4& M);
-
 // Declaração de várias funções utilizadas em main().  Essas estão definidas
 // logo após a definição de main() neste arquivo.
 void BuildTrianglesAndAddToVirtualScene(ObjModel*); // Constrói representação de um ObjModel como malha de triângulos para renderização
@@ -94,7 +94,6 @@ GLuint LoadShader_Fragment(const char* filename); // Carrega um fragment shader
 void LoadShader(const char* filename, GLuint shader_id); // Função utilizada pelas duas acima
 GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id); // Cria um programa de GPU
 void PrintObjModelInfo(ObjModel*); // Função para debugging
-
 // Declaração de funções auxiliares para renderizar texto dentro da janela
 // OpenGL. Estas funções estão definidas no arquivo "textrendering.cpp".
 void TextRendering_Init();
@@ -106,14 +105,12 @@ void TextRendering_PrintVector(GLFWwindow* window, glm::vec4 v, float x, float y
 void TextRendering_PrintMatrixVectorProduct(GLFWwindow* window, glm::mat4 M, glm::vec4 v, float x, float y, float scale = 1.0f);
 void TextRendering_PrintMatrixVectorProductMoreDigits(GLFWwindow* window, glm::mat4 M, glm::vec4 v, float x, float y, float scale = 1.0f);
 void TextRendering_PrintMatrixVectorProductDivW(GLFWwindow* window, glm::mat4 M, glm::vec4 v, float x, float y, float scale = 1.0f);
-
 // Funções abaixo renderizam como texto na janela OpenGL algumas matrizes e
 // outras informações do programa. Definidas após main().
 void TextRendering_ShowModelViewProjection(GLFWwindow* window, glm::mat4 projection, glm::mat4 view, glm::mat4 model, glm::vec4 p_model);
 void TextRendering_ShowEulerAngles(GLFWwindow* window);
 void TextRendering_ShowProjection(GLFWwindow* window);
 void TextRendering_ShowFramesPerSecond(GLFWwindow* window);
-
 // Funções callback para comunicação com o sistema operacional e interação do
 // usuário. Veja mais comentários nas definições das mesmas, abaixo.
 void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
@@ -122,7 +119,6 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mode
 void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 void CursorPosCallback(GLFWwindow* window, double xpos, double ypos);
 void ScrollCallback(GLFWwindow* window, double xoffset, double yoffset);
-
 //int return_bbox_max(const char* object_name)
 float return_bbox_max(const char* object_name,int bbox);
 
@@ -139,77 +135,84 @@ struct SceneObject
     glm::vec3    bbox_min; // Axis-Aligned Bounding Box do objeto
     glm::vec3    bbox_max;
 };
-
+/*
 struct screen
 {
-    float width, depth;                                         // tamanho da tela
-};
+    float posX = 0.0f;                                          // valores x,y,z para free-look
+    float posY = 20.0f;
+    float posZ = 0.0f;
+    //glm::vec4 camPos = glm::vec4(x,y,z,1);
+}; screen cam;
+*/
+struct type_freelook
+{
+    float posX = 0.0f;                                          // posicao da camera em x
+    float posY = 20.0f;                                         // posicao da camera em y
+    float posZ = 0.0f;                                          // posicao da camera em z
+    float theta = 0.0f;                                         // Ângulo no plano ZX em relação ao eixo Z
+    float phi = M_PI_2/2;                                       // Ângulo em relação ao eixo Y
+    float distance = 20.0f;                                     // Distância da câmera para a origem
+};type_freelook freelook;
+
+struct type_lookat
+{    
+    float posX = 0.0f;                                          // posicao da camera em x
+    float posY = 0.0f;                                          // posicao da camera em y
+    float posZ = 0.0f;                                          // posicao da camera em z
+    float lookingX = 0.0f;                                          // valores x,y,z para free-look
+    float lookingY = 20.0f;
+    float lookingZ = 0.0f;
+    float theta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
+    float phi = M_PI_2/2;   // Ângulo em relação ao eixo Y
+    float distance = 20.0f; // Distância da câmera para a origem
+};type_lookat lookat;
 
 struct pacman
 {
     float posX,posY,posZ = 0.0f;                                // coordenadas onde o pacman está localizado 
+    float angle = 0.0f;											// angulo para quando andar em alguma direcao, virar o pacman para o lado correspondente
+    float speed = 4.0f;										    // velocidade atual do pacman
+    float scaled = 0.5;											// variavel usada no escalamento // nao cria uma var para x,y,z pois deformaria a esfera
+    int pressedButton = 0;										// flag para responder a um unico botao de cada vez (not working)
 }; pacman player;
 
-struct dots{                                                    // vetores dos pontos
+struct dots{                                                    // vetores dos pontos (as bolinhas que vao ser comidas do chao)
     float x,y,z;
     glm::vec4 vectors = glm::vec4(x,y,z,1);
+    int exists = 1;												
 };
 
 struct box
 {
-    float x,y,z,w;                                 // tamanho das caixas nos eixos x,y,z
-    glm::vec4 size;
-    glm::vec4 coord;                                      // coordenadas do ponto onde a caixa esta localizada
+    float x,y,z;                                 			
+    glm::vec3 size = glm::vec3(x,y,z);												// tamanho das caixas nos eixos x,y,z
+    glm::vec3 coord = glm::vec3(x,y,z);                                   		    // coordenadas do ponto onde a caixa esta localizada
 };
 
-
 // Abaixo definimos variáveis globais utilizadas em várias funções do código.
-
 // A cena virtual é uma lista de objetos nomeados, guardados em um dicionário
 // (map).  Veja dentro da função BuildTrianglesAndAddToVirtualScene() como que são incluídos
 // objetos dentro da variável g_VirtualScene, e veja na função main() como
 // estes são acessados.
 std::map<std::string, SceneObject> g_VirtualScene;
-
 // Pilha que guardará as matrizes de modelagem.
 std::stack<glm::mat4>  g_MatrixStack;
-
 // Razão de proporção da janela (largura/altura). Veja função FramebufferSizeCallback().
-float g_ScreenRatio = 1.0f;
-
+float g_ScreenRatio = 1.77f;
 // Ângulos de Euler que controlam a rotação de um dos cubos da cena virtual
-float g_AngleX = 0.0f;
-float g_AngleY = 0.0f;
-float g_AngleZ = 0.0f;
-
 // "g_LeftMouseButtonPressed = true" se o usuário está com o botão esquerdo do mouse
 // pressionado no momento atual. Veja função MouseButtonCallback().
 bool g_LeftMouseButtonPressed = false;
 bool g_RightMouseButtonPressed = false; // Análogo para botão direito do mouse
 bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mouse
-
 // Variáveis que definem a câmera em coordenadas esféricas, controladas pelo
 // usuário através do mouse (veja função CursorPosCallback()). A posição
 // efetiva da câmera é calculada dentro da função main(), dentro do loop de
 // renderização.
-float g_CameraTheta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
-float g_CameraPhi = 0.0f;   // Ângulo em relação ao eixo Y
-float g_CameraDistance = 15.0f; // Distância da câmera para a origem
-
-// Variáveis que controlam rotação do antebraço
-float g_ForearmAngleZ = 0.0f;
-float g_ForearmAngleX = 0.0f;
-
-// Variáveis que controlam translação do torso
-float g_TorsoPositionX = 0.0f;
-float g_TorsoPositionY = 0.0f;
-
 // Variável que controla o tipo de projeção utilizada: perspectiva ou ortográfica.
 bool g_UsePerspectiveProjection = true;
-
 // Variável que controla se o texto informativo será mostrado na tela.
 bool g_ShowInfoText = true;
-
 // Variáveis que definem um programa de GPU (shaders). Veja função LoadShadersFromFiles().
 GLuint vertex_shader_id;
 GLuint fragment_shader_id;
@@ -220,9 +223,10 @@ GLint projection_uniform;
 GLint object_id_uniform;
 GLint bbox_min_uniform;
 GLint bbox_max_uniform;
-
 // Número de texturas carregadas pela função LoadTextureImage()
 GLuint g_NumLoadedTextures = 0;
+int cameraType = 0;                                         // 1=look-at/0-free look
+
 
 int main(int argc, char* argv[])
 {
@@ -302,6 +306,8 @@ int main(int argc, char* argv[])
     LoadTextureImage("../../data/obsidian.png");    // obsidian
     LoadTextureImage("../../data/pac3.png");        // pac3
     LoadTextureImage("../../data/pac.png");         // pac
+    LoadTextureImage("../../data/compcube.png");    // cube
+
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/sphere.obj");
@@ -319,6 +325,10 @@ int main(int argc, char* argv[])
     ObjModel cratemodel("../../data/crate.obj");
     ComputeNormals(&cratemodel);
     BuildTrianglesAndAddToVirtualScene(&cratemodel);
+
+    ObjModel cubemodel("../../data/cube.obj");
+    ComputeNormals(&cubemodel);
+    BuildTrianglesAndAddToVirtualScene(&cubemodel);
 
     if ( argc > 1 )
     {
@@ -343,9 +353,14 @@ int main(int argc, char* argv[])
     glm::mat4 the_model;
     glm::mat4 the_view;
 
+    float oldTime = (float)glfwGetTime();
+
     // Ficamos em loop, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
     {
+    	float currentTime = (float)glfwGetTime();
+    	float time = currentTime - oldTime;
+
         // Aqui executamos as operações de renderização
 
         // Definimos a cor do "fundo" do framebuffer como branco.  Tal cor é
@@ -368,29 +383,54 @@ int main(int argc, char* argv[])
         // variáveis g_CameraDistance, g_CameraPhi, e g_CameraTheta são
         // controladas pelo mouse do usuário. Veja as funções CursorPosCallback()
         // e ScrollCallback().
-        float r = g_CameraDistance;
-        float y = r*sin(g_CameraPhi);
-        float z = r*cos(g_CameraPhi)*cos(g_CameraTheta);
-        float x = r*cos(g_CameraPhi)*sin(g_CameraTheta);
 
-        // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
-        // Veja slides 172-182 do documento "Aula_08_Sistemas_de_Coordenadas.pdf".
-        glm::vec4 camera_position_c  = glm::vec4(x,y,z,1.0f); // Ponto "c", centro da câmera
-        glm::vec4 camera_lookat_l    = glm::vec4(0.0f,0.0f,0.0f,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
-        glm::vec4 camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
-        glm::vec4 camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
+        glm::vec4 camera_position_c;
+        glm::vec4 camera_lookat_l;
+        glm::vec4 camera_view_vector;
+        glm::vec4 camera_up_vector;
 
+        float r;
+        float y;
+        float z;
+        float x;
+
+        // look-at (DONE)
+        if(cameraType==0){
+            r = lookat.distance;
+            y = r*sin(lookat.phi);
+            z = r*cos(lookat.phi)*cos(lookat.theta);
+            x = r*cos(lookat.phi)*sin(lookat.theta);
+
+            camera_position_c  = glm::vec4(x,y,z,1.0f); // Ponto "c", centro da câmera
+            camera_lookat_l    = glm::vec4(0.0f,0.0f,0.0f,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
+            camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
+            camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
+        }
+        else {
+        // free look (KINDA DONE)
+        // precisa ajustar a camera, talvez perguntar pro professor o que fazer.
+            r = freelook.posY;
+            y = r*sin(freelook.phi);
+            z = r*cos(freelook.phi)*cos(freelook.theta);
+            x = r*cos(freelook.phi)*sin(freelook.theta);
+
+            camera_position_c  = glm::vec4(freelook.posX,freelook.posY,freelook.posZ,1.0f); // Ponto "c", centro da câmera
+            camera_view_vector = glm::vec4(x,y,z,0.0f);// Vetor "view", sentido para onde a câmera está virada
+            camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
+            camera_view_vector = -camera_view_vector;
+        }
+        
+        glm::mat4 view = Matrix_Camera_View(camera_position_c, camera_view_vector, camera_up_vector) ;
+        printf("%d\n",cameraType);
         // Computamos a matriz "View" utilizando os parâmetros da câmera para
         // definir o sistema de coordenadas da câmera.  Veja slide 186 do documento "Aula_08_Sistemas_de_Coordenadas.pdf".
-        glm::mat4 view = Matrix_Camera_View(camera_position_c, camera_view_vector, camera_up_vector);
-
         // Agora computamos a matriz de Projeção.
         glm::mat4 projection;
 
         // Note que, no sistema de coordenadas da câmera, os planos near e far
         // estão no sentido negativo! Veja slides 190-193 do documento "Aula_09_Projecoes.pdf".
         float nearplane = -0.1f;  // Posição do "near plane"
-        float farplane  = -35.0f; // Posição do "far plane"
+        float farplane  = -100.0f; // Posição do "far plane"
 
         if (g_UsePerspectiveProjection)
         {
@@ -406,7 +446,11 @@ int main(int argc, char* argv[])
             // PARA PROJEÇÃO ORTOGRÁFICA veja slide 236 do documento "Aula_09_Projecoes.pdf".
             // Para simular um "zoom" ortográfico, computamos o valor de "t"
             // utilizando a variável g_CameraDistance.
-            float t = 1.5f*g_CameraDistance/2.5f;
+            float t;
+            if (cameraType==0) 
+                t = 1.5f*lookat.distance/2.5f;
+            else 
+                t = 1.5f*freelook.distance/2.5f;
             float b = -t;
             float r = t*g_ScreenRatio;
             float l = -r;
@@ -421,47 +465,147 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
         glUniformMatrix4fv(projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
 
-        #define SPHERE 0
-        #define BUNNY  1
-        #define PLANE  2
-        #define WALL   3
-        #define CRATE  4
-
-        float scaledX = 16.0f;
-        float scaledZ = 9.0f;
+        float scaledX = 16.0f;											// largura em x do chao
+        float scaledZ = 9.0f;											// largura em z do chao
         float scaledY = 0.0f;
         int i=0;
+        int j=0;
 
-        box walls[10];
+        box walls[400];
 
-       // walls[0].size_x = 1.0f;
+        	walls[i].size = glm::vec3(1.0f,2.0f,1.0f);
+	        walls[i].coord = glm::vec3((scaledX-(walls[i].size.x/2))-i,(walls[i].size.y)/2,(scaledZ-(walls[i].size.z/2)));
+	        model = Matrix_Translate(2.0f,2.0f,2.0f)          
+	              * Matrix_Scale(walls[i].size.x,walls[i].size.y,walls[i].size.z);
+	        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+	        glUniform1i(object_id_uniform, CUBE);
+	        DrawVirtualObject("cube");
 
-  
+        // walls de cima da direita
+        for(i=0;i<12;i++){
+	        walls[i].size = glm::vec3(1.0f,2.0f,1.0f);
+	        walls[i].coord = glm::vec3(-(scaledX-(walls[i].size.x/2))+i,(walls[i].size.y)/2,(scaledZ-(walls[i].size.z/2)));
+	        model = Matrix_Translate(walls[i].coord.x,walls[i].coord.y,walls[i].coord.z)          
+	              * Matrix_Scale(walls[i].size.x,walls[i].size.y,walls[i].size.z);
+	        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+	        glUniform1i(object_id_uniform, CRATE);
+	        DrawVirtualObject("crate");
+	    }
 
+        // walls de cima da esquerda
+	    for(i=0;i<12;i++){
+	        walls[i].size = glm::vec3(1.0f,2.0f,1.0f);
+	        walls[i].coord = glm::vec3((scaledX-(walls[i].size.x/2))-i,(walls[i].size.y)/2,(scaledZ-(walls[i].size.z/2)));
+	        model = Matrix_Translate(walls[i].coord.x,walls[i].coord.y,walls[i].coord.z)          
+	              * Matrix_Scale(walls[i].size.x,walls[i].size.y,walls[i].size.z);
+	        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+	        glUniform1i(object_id_uniform, WALL);
+	        DrawVirtualObject("crate");
+	    }
 
-struct box
-{
-    float size_x,size_y,size_z;                                 // tamanho das caixas nos eixos x,y,z
-    float dotX, dotY,dotZ;                                      // coordenadas do ponto onde a caixa esta localizada
-};
+        // walls de baixo da esquerda 
+	    for(i=0;i<12;i++){
+	        walls[i].size = glm::vec3(1.0f,2.0f,1.0f);
+	        walls[i].coord = glm::vec3((scaledX-(walls[i].size.x/2))-i,(walls[i].size.y)/2,-(scaledZ-(walls[i].size.z/2)));
+	        model = Matrix_Translate(walls[i].coord.x,walls[i].coord.y,walls[i].coord.z)          
+	              * Matrix_Scale(walls[i].size.x,walls[i].size.y,walls[i].size.z);
+	        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+	        glUniform1i(object_id_uniform, WALL);
+	        DrawVirtualObject("crate");
+	    }
+
+	    // walls de baixo da direita
+	    for(i=0;i<12;i++){
+	        walls[i].size = glm::vec3(1.0f,2.0f,1.0f);
+	        walls[i].coord = glm::vec3(-(scaledX-(walls[i].size.x/2))+i,(walls[i].size.y)/2,-(scaledZ-(walls[i].size.z/2)));
+	        model = Matrix_Translate(walls[i].coord.x,walls[i].coord.y,walls[i].coord.z)          
+	              * Matrix_Scale(walls[i].size.x,walls[i].size.y,walls[i].size.z);
+	        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+	        glUniform1i(object_id_uniform, WALL);
+	        DrawVirtualObject("crate");
+	    }
+
+	    // walls laterais da esquerda em cima
+	    for(j=0;j<8;j++){
+	        walls[i].size = glm::vec3(1.0f,2.0f,1.0f);
+	        walls[i].coord = glm::vec3(-(scaledX-(walls[j].size.x/2)),(walls[j].size.y)/2,-(scaledZ-(walls[j].size.z/2))+j);
+	        model = Matrix_Translate(walls[i].coord.x,walls[i].coord.y,walls[i].coord.z)          
+	              * Matrix_Scale(walls[i].size.x,walls[i].size.y,walls[i].size.z);
+	        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+	        glUniform1i(object_id_uniform, WALL);
+	        DrawVirtualObject("crate");
+	    }
+
+	    // walls laterais da esquerda em baixo
+	    for(j=0;j<8;j++){
+	        walls[i].size = glm::vec3(1.0f,2.0f,1.0f);
+	        walls[i].coord = glm::vec3(-(scaledX-(walls[j].size.x/2)),(walls[j].size.y)/2,(scaledZ-(walls[j].size.z/2))-j);
+	        model = Matrix_Translate(walls[i].coord.x,walls[i].coord.y,walls[i].coord.z)          
+	              * Matrix_Scale(walls[i].size.x,walls[i].size.y,walls[i].size.z);
+	        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+	        glUniform1i(object_id_uniform, WALL);
+	        DrawVirtualObject("crate");
+	    }
+
+	    // walls laterais da direita em baixo
+	    for(j=0;j<8;j++){
+	        walls[i].size = glm::vec3(1.0f,2.0f,1.0f);
+	        walls[i].coord = glm::vec3((scaledX-(walls[j].size.x/2)),(walls[j].size.y)/2,-(scaledZ-(walls[j].size.z/2))+j);
+	        model = Matrix_Translate(walls[i].coord.x,walls[i].coord.y,walls[i].coord.z)          
+	              * Matrix_Scale(walls[i].size.x,walls[i].size.y,walls[i].size.z);
+	        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+	        glUniform1i(object_id_uniform, WALL);
+	        DrawVirtualObject("crate");
+	    }
+
+	    // walls laterais da direita em cima
+	    for(j=0;j<8;j++){
+	        walls[i].size = glm::vec3(1.0f,2.0f,1.0f);
+	        walls[i].coord = glm::vec3((scaledX-(walls[j].size.x/2)),(walls[j].size.y)/2,(scaledZ-(walls[j].size.z/2))-j);
+	        model = Matrix_Translate(walls[i].coord.x,walls[i].coord.y,walls[i].coord.z)          
+	              * Matrix_Scale(walls[i].size.x,walls[i].size.y,walls[i].size.z);
+	        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+	        glUniform1i(object_id_uniform, WALL);
+	        DrawVirtualObject("crate");
+	    }
+
+	    // walls de cima da central
+        for(i=1;i<6;i++){
+        	for(j=0;j<4;j++){
+		        walls[i].size = glm::vec3(1.0f,2.0f,1.0f);
+		        walls[i].coord = glm::vec3(-(3.5f-(walls[i].size.x/2))+i,(walls[i].size.y)/2,(scaledZ-(walls[i].size.z/2))-j);
+		        model = Matrix_Translate(walls[i].coord.x,walls[i].coord.y,walls[i].coord.z)          
+		              * Matrix_Scale(walls[i].size.x,walls[i].size.y,walls[i].size.z);
+		        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+		        glUniform1i(object_id_uniform, WALL);
+		        DrawVirtualObject("crate");
+		    }
+		}
+
+		// walls de baixo da central
+        for(i=1;i<6;i++){
+        	for(j=0;j<4;j++){
+		        walls[i].size = glm::vec3(1.0f,2.0f,1.0f);
+		        walls[i].coord = glm::vec3(-(3.5f-(walls[i].size.x/2))+i,(walls[i].size.y)/2,-(scaledZ-(walls[i].size.z/2))+j);
+		        model = Matrix_Translate(walls[i].coord.x,walls[i].coord.y,walls[i].coord.z)          
+		              * Matrix_Scale(walls[i].size.x,walls[i].size.y,walls[i].size.z);
+		        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
+		        glUniform1i(object_id_uniform, WALL);
+		        DrawVirtualObject("crate");
+		    }
+		}
 
         // Desenhamos o modelo da esfera
-        model = Matrix_Translate(player.posX,player.posY,player.posZ)
-              * Matrix_Rotate_Y(g_AngleY);
+        model = Matrix_Scale(player.scaled,player.scaled,player.scaled)
+			  * Matrix_Translate(player.posX,player.posY+2*player.scaled,player.posZ)
+              * Matrix_Rotate_Y(player.angle)
+              * player.speed;
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, SPHERE);
         DrawVirtualObject("sphere");
+   //     printf("max:%f min: %f\n",g_VirtualScene["sphere"].bbox_max.y, g_VirtualScene["sphere"].bbox_min.y);
 
         // Desenhamos o modelo do coelho
-        model = Matrix_Scale(0.5f,1.0f,0.5f)
-              * Matrix_Translate(0.5f,0.0f,0.0f) 
-              * Matrix_Rotate_Z(g_AngleZ) 
-              * Matrix_Rotate_Y(g_AngleY) 
-              * Matrix_Rotate_X(g_AngleX);
-        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(object_id_uniform, BUNNY);
-        DrawVirtualObject("bunny");
-
         model = Matrix_Translate(0.0f,0.0f,0.0f)
               * Matrix_Scale(scaledX,1.0f,scaledZ);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
@@ -484,7 +628,7 @@ struct box
 	        glUniform1i(object_id_uniform, WALL);
 	        DrawVirtualObject("plane");
 	    }
-*/
+*//*
          model = Matrix_Translate(g_VirtualScene["plane"].bbox_max.x*scaledX,g_VirtualScene["plane"].bbox_max.y+1.0f,0.0f)          // melhorar a funcao return_bbox_max
 	           * Matrix_Rotate_Z(M_PI_2)
 	           * Matrix_Scale(1.0f,1.0f,scaledZ);
@@ -515,15 +659,15 @@ struct box
 	    glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
 	    glUniform1i(object_id_uniform, WALL);
 	    DrawVirtualObject("plane");
-
-        // paredes internas
+/*/
+/*        // paredes internas
         model = Matrix_Translate(2.0f,g_VirtualScene["plane"].bbox_min.y*scaledY,2.0f)          // melhorar a funcao return_bbox_max
                * Matrix_Rotate_Z(M_PI_2)
                * Matrix_Scale(1.0f,1.0f,1.0f);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, WALL);
         DrawVirtualObject("crate");
-
+/*/
 
 	    
 
@@ -570,6 +714,66 @@ struct box
     return 0;
 }
 
+
+/*struct SceneObject
+{
+    std::string  name;        // Nome do objeto
+    void*        first_index; // Índice do primeiro vértice dentro do vetor indices[] definido em BuildTrianglesAndAddToVirtualScene()
+    int          num_indices; // Número de índices do objeto dentro do vetor indices[] definido em BuildTrianglesAndAddToVirtualScene()
+    GLenum       rendering_mode; // Modo de rasterização (GL_TRIANGLES, GL_TRIANGLE_STRIP, etc.)
+    GLuint       vertex_array_object_id; // ID do VAO onde estão armazenados os atributos do modelo
+    glm::vec3    bbox_min; // Axis-Aligned Bounding Box do objeto
+    glm::vec3    bbox_max;
+};
+
+
+
+
+bool checkCollision(SceneObject obj1, SceneObject obj2)
+{
+    float minX1 = (obj1.bbox_min.x + obj1.model[3][0]) * obj1.model[0][0];
+    float minY1 = (obj1.bbox_min.y + obj1.model[3][1]) * obj1.model[1][1];
+    float minZ1 = (obj1.bbox_min.z + obj1.model[3][2]) * obj1.model[2][2];
+
+    float maxX1 = (obj1.bbox_max.x + obj1.model[3][0]) * obj1.model[0][0];
+    float maxY1 = (obj1.bbox_max.y + obj1.model[3][1]) * obj1.model[1][1];
+    float maxZ1 = (obj1.bbox_max.z + obj1.model[3][2]) * obj1.model[2][2];
+
+    float minX2 = (obj2.bbox_min.x + obj2.model[3][0]) * obj2.model[0][0];
+    float minY2 = (obj2.bbox_min.y + obj2.model[3][1]) * obj2.model[1][1];
+    float minZ2 = (obj2.bbox_min.z + obj2.model[3][2]) * obj2.model[2][2];
+
+    float maxX2 = (obj2.bbox_max.x + obj2.model[3][0]) * obj2.model[0][0];
+    float maxY2 = (obj2.bbox_max.y + obj2.model[3][1]) * obj2.model[1][1];
+    float maxZ2 = (obj2.bbox_max.z + obj2.model[3][2]) * obj2.model[2][2];
+
+    bool collisionX = (minX1 >= minX2 && maxX1 <= maxX2) || (minX1 <= minX2 && maxX1 >= maxX2);
+    bool collisionY = (minY1 >= minY2 && maxY1 <= maxY2) || (minY1 <= minY2 && maxY1 >= maxY2);
+    bool collisionZ = (minZ1 >= minZ2 && maxZ1 <= maxZ2) || (minZ1 <= minZ2 && maxZ1 >= maxZ2);
+
+    return collisionX && collisionY && collisionZ;
+}
+
+        hasTexture = true;
+        vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
+        vec4 pvector = position_model-bbox_center;
+
+        float px = pvector.x;
+        float py = pvector.y;
+        float pz = pvector.z;
+        
+        U = px;
+        V = py;
+/*
+struct pacman
+{
+    float posX,posY,posZ = 0.0f;                                // coordenadas onde o pacman está localizado 
+    float angle = 0.0f;											// angulo para quando andar em alguma direcao, virar o pacman para o lado correspondente
+    float speed = 4.0f;										    // velocidade atual do pacman
+    float scaled = 0.5;											// variavel usada no escalamento // nao cria uma var para x,y,z pois deformaria a esfera
+    int pressedButton = 0;
+}; pacman player;
+/*/
 // Função que carrega uma imagem para ser utilizada como textura
 void LoadTextureImage(const char* filename)
 {
@@ -655,6 +859,7 @@ void DrawVirtualObject(const char* object_name)
     glBindVertexArray(0);
 }
 
+// TALVEZ RETIRAR
 float return_bbox_max(const char* object_name, int bbox)
 {
     glm::vec3 bbox_min = g_VirtualScene[object_name].bbox_min;
@@ -720,6 +925,8 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(program_id, "obsidian"), 1);
     glUniform1i(glGetUniformLocation(program_id, "pac"), 2);
     glUniform1i(glGetUniformLocation(program_id, "pac3"), 3);
+    glUniform1i(glGetUniformLocation(program_id, "compcube"), 4);
+
     //glUniform1i(glGetUniformLocation(program_id, "crate"), 4);
 
     glUseProgram(0);
@@ -1125,6 +1332,7 @@ void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 // Variáveis globais que armazenam a última posição do cursor do mouse, para
 // que possamos calcular quanto que o mouse se movimentou entre dois instantes
 // de tempo. Utilizadas no callback CursorPosCallback() abaixo.
+// AJUSTAR
 double g_LastCursorPosX, g_LastCursorPosY;
 
 // Função callback chamada sempre que o usuário aperta algum dos botões do mouse
@@ -1182,7 +1390,7 @@ void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 
 // Função callback chamada sempre que o usuário movimentar o cursor do mouse em
 // cima da janela OpenGL.
-void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
+void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)                                        // cada tipo de camera tem suas coordenadas e angulos INDIVIDUAIS
 {
     // Abaixo executamos o seguinte: caso o botão esquerdo do mouse esteja
     // pressionado, computamos quanto que o mouse se movimento desde o último
@@ -1195,20 +1403,39 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
         float dx = xpos - g_LastCursorPosX;
         float dy = ypos - g_LastCursorPosY;
+
+         // Em coordenadas esféricas, o ângulo phi deve ficar entre -pi/2 e +pi/2.
+        float phimax;
+        float phimin;
+        
+        // look at
+        if(cameraType==0){
+            // Atualizamos parâmetros da câmera com os deslocamentos INDIVIDUALMENTE para cada tipo de camera
+            lookat.theta -= 0.01f*dx;
+            lookat.phi   += 0.01f*dy;                
+            phimax = (3.141592f/2);
+            phimin = -phimax;
+
+            if (lookat.phi > phimax)
+                lookat.phi = phimax;
+        
+            if (lookat.phi < phimin)
+                lookat.phi = phimin;
+        }
+        // free look
+        else {
+
+            freelook.theta -= 0.01f*dx;
+            freelook.phi   += 0.01f*dy; 
+            phimax = 3.141592f/2;
+            phimin = -phimax;
+
+            if (freelook.phi > phimax)
+                freelook.phi = phimax;
     
-        // Atualizamos parâmetros da câmera com os deslocamentos
-        g_CameraTheta -= 0.01f*dx;
-        g_CameraPhi   += 0.01f*dy;
-    
-        // Em coordenadas esféricas, o ângulo phi deve ficar entre -pi/2 e +pi/2.
-        float phimax = 3.141592f/2;
-        float phimin = -phimax;
-    
-        if (g_CameraPhi > phimax)
-            g_CameraPhi = phimax;
-    
-        if (g_CameraPhi < phimin)
-            g_CameraPhi = phimin;
+            if (freelook.phi < phimin)
+                freelook.phi = phimin;
+        }
     
         // Atualizamos as variáveis globais para armazenar a posição atual do
         // cursor como sendo a última posição conhecida do cursor.
@@ -1216,7 +1443,7 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         g_LastCursorPosY = ypos;
     }
 
-    if (g_RightMouseButtonPressed)
+/*    if (g_RightMouseButtonPressed)
     {
         // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
         float dx = xpos - g_LastCursorPosX;
@@ -1246,24 +1473,31 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         // cursor como sendo a última posição conhecida do cursor.
         g_LastCursorPosX = xpos;
         g_LastCursorPosY = ypos;
-    }
+    }/*/
 }
 
 // Função callback chamada sempre que o usuário movimenta a "rodinha" do mouse.
 void ScrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    // Atualizamos a distância da câmera para a origem utilizando a
-    // movimentação da "rodinha", simulando um ZOOM.
-    g_CameraDistance -= 0.1f*yoffset;
-
     // Uma câmera look-at nunca pode estar exatamente "em cima" do ponto para
     // onde ela está olhando, pois isto gera problemas de divisão por zero na
     // definição do sistema de coordenadas da câmera. Isto é, a variável abaixo
     // nunca pode ser zero. Versões anteriores deste código possuíam este bug,
     // o qual foi detectado pelo aluno Vinicius Fraga (2017/2).
-    const float verysmallnumber = std::numeric_limits<float>::epsilon();
-    if (g_CameraDistance < verysmallnumber)
-        g_CameraDistance = verysmallnumber;
+
+    const float free_verysmallnumber = std::numeric_limits<float>::epsilon();
+    const float look_verysmallnumber = std::numeric_limits<float>::epsilon();
+
+    if(cameraType==0){
+        lookat.distance -= 0.1f*yoffset;
+        if (lookat.distance < look_verysmallnumber)
+            lookat.distance = look_verysmallnumber;
+    }
+    else{ 
+        freelook.distance -= 0.1f*yoffset;
+        if (freelook.distance < free_verysmallnumber)
+            freelook.distance = free_verysmallnumber;
+    }
 }
 
 // Definição da função que será chamada sempre que o usuário pressionar alguma
@@ -1282,64 +1516,82 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
 
-    // O código abaixo implementa a seguinte lógica:
-    //   Se apertar tecla X       então g_AngleX += delta;
-    //   Se apertar tecla shift+X então g_AngleX -= delta;
-    //   Se apertar tecla Y       então g_AngleY += delta;
-    //   Se apertar tecla shift+Y então g_AngleY -= delta;
-    //   Se apertar tecla Z       então g_AngleZ += delta;
-    //   Se apertar tecla shift+Z então g_AngleZ -= delta;
-
     float delta = 3.141592 / 16; // 22.5 graus, em radianos.
 
-    if (key == GLFW_KEY_X && action == GLFW_PRESS)
+    if (key == GLFW_KEY_U && action == GLFW_PRESS)
     {
-        g_AngleX += (mod & GLFW_MOD_SHIFT) ? -delta : delta;
-    }
-
-    if (key == GLFW_KEY_Y && action == GLFW_PRESS)
-    {
-        g_AngleY += (mod & GLFW_MOD_SHIFT) ? -delta : delta;
-    }
-    if (key == GLFW_KEY_Z && action == GLFW_PRESS)
-    {
-        g_AngleZ += (mod & GLFW_MOD_SHIFT) ? -delta : delta;
+            if(cameraType==0)
+                cameraType=1;
+            else
+                cameraType=0;  
     }
 
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
     {                                                       
-        player.posX = player.posX - 0.1f;             
+        player.posX = player.posX - 0.1f;
+        player.angle = M_PI;
+        player.pressedButton = 1;
     }                                                       
 
      if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
     {
-        player.posX = player.posX + 0.1f; 
+        player.posX = player.posX + 0.1f;
+		player.angle = (2*M_PI);
+		player.pressedButton = 1;
     }
-
-  // ================================================================
 
      if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)      // g_CameraDistance increase/decrease the near frustrum, but the camera always will be looking at
     {                                                       // the coordenate center(0,0,0). if you pass through it, the camera will do a 180º flip
         player.posZ = player.posZ - 0.1f;
+        player.angle = (M_PI_2);
+        player.pressedButton = 1;
     }
 
      if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
     {
          player.posZ = player.posZ + 0.1;
+         player.angle = (M_PI+ M_PI_2);
+         player.pressedButton = 1;
     }
 
-    // Se o usuário apertar a tecla espaço, resetamos os ângulos de Euler para zero.
-    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
     {
-        g_AngleX = 0.0f;
-        g_AngleY = 0.0f;
-        g_AngleZ = 0.0f;
-        g_ForearmAngleX = 0.0f;
-        g_ForearmAngleZ = 0.0f;
-        g_TorsoPositionX = 0.0f;
-        g_TorsoPositionY = 0.0f;
+        if(cameraType==0)
+    	   lookat.posX = lookat.posX - 0.1;
+        else
+            freelook.posX = freelook.posX - 0.1;
     }
 
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+    {
+        if(cameraType==0)
+            lookat.posX = lookat.posX + 0.1;
+        else
+            freelook.posX = freelook.posX + 0.1;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+    {
+        if(cameraType==0)
+    	    lookat.posZ = lookat.posZ + 0.1;
+        else
+            freelook.posZ = freelook.posZ + 0.1;
+
+    }
+
+	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+    {
+        if(cameraType==0)
+            lookat.posZ = lookat.posZ - 0.1;
+        else
+            freelook.posZ = freelook.posZ - 0.1;
+
+    }
+/*    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+    {
+
+    }
+/*/
     // Se o usuário apertar a tecla P, utilizamos projeção perspectiva.
     if (key == GLFW_KEY_P && action == GLFW_PRESS)
     {
@@ -1365,6 +1617,9 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
         fprintf(stdout,"Shaders recarregados!\n");
         fflush(stdout);
     }
+
+    else 
+    	player.pressedButton = 0;
 }
 
 // Definimos o callback para impressão de erros da GLFW no terminal
@@ -1445,7 +1700,7 @@ void TextRendering_ShowEulerAngles(GLFWwindow* window)
     float pad = TextRendering_LineHeight(window);
 
     char buffer[80];
-    snprintf(buffer, 80, "Euler Angles rotation matrix = Z(%.2f)*Y(%.2f)*X(%.2f)\n", g_AngleZ, g_AngleY, g_AngleX);
+    snprintf(buffer, 80, "da pra usar isso aqui pra alguma coisa");
 
     TextRendering_PrintString(window, buffer, -1.0f+pad/10, -1.0f+2*pad/10, 1.0f);
 }
