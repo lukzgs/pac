@@ -607,19 +607,19 @@ int main(int argc, char* argv[])
 
         // Desenhamos o modelo do coelho
         model = Matrix_Translate(0.0f,0.0f,0.0f)
-              * Matrix_Scale(scaledX,1.0f,scaledZ);
+              * Matrix_Scale(1.0f,1.0f,1.0f);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(object_id_uniform, PLANE);
-        DrawVirtualObject("plane");
+        glUniform1i(object_id_uniform, BUNNY);
+        DrawVirtualObject("bunny");
 
-/*
+
         // Desenhamos o plano do chão
         model = Matrix_Translate(0.0f,-1.1f,0.0f)
               * Matrix_Scale(scaledX,1.0f,scaledZ);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, PLANE);
         DrawVirtualObject("plane");
-/*/
+
         // Desenhamos o plano das paredes
        /* for (i=0;i<scaledX;i++){
 	        model = Matrix_Translate(g_VirtualScene["plane"].bbox_max.x*scaledX,scaledY+1.0f,(g_VirtualScene["plane"].bbox_max.z*scaledZ-1.0f)-2*i)          // melhorar a funcao return_bbox_max
