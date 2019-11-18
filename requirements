@@ -1,0 +1,30 @@
+* interação em tempo real
+* transformações geométricas (Model matrix), projeções (Projection matrix), e especificação do sistema de coordenadas da câmera (View matrix)
+* interação com o usuário
+
+grafica
+
+* malhas poligonais complexas (malhas de triângulos)
+* um modelo geométrico da complexidade igual ou maior que o modelo "cow.obj"
+
+câmeras virtuais 									(DONE)
+* no minimo DUAS
+
+* um objeto virtual deve ser copiado com duas ou mais instâncias, isto é, utilizando duas ou mais Model matrix aplicadas ao mesmo conjunto de vértices.
+
+Testes de intersecção entre objetos virtuais.
+* No mínimo sua aplicação deve utilizar três tipos
+
+Modelos de iluminação
+* No mínimo sua aplicação deve incluir objetos com os seguintes modelos de iluminação: difusa (Lambert) e Blinn-Phong.
+* No mínimo um objeto com modelo de Gouraud			(DONE)
+* No mínimo um objeto com modelo de Phong 			(DONE)
+
+Mapeamento de texturas (DONE)
+* No mínimo dois objetos virtuais
+
+Curvas de Bézier
+* No mínimo um objeto virtual de sua aplicação deve ter sua movimentação
+
+Animação de Movimento baseada no tempo
+* Todas as movimentações de objetos (incluindo da câmera) devem ser computadas baseado no tempo real(isto é, movimentações devem ocorrer sempre na mesma velocidade independente da velocidade da CPU onde o programa está sendo executado
